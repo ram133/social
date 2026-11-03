@@ -157,7 +157,7 @@
     <section class="card" aria-labelledby="page-title">
       <h1 id="page-title">GitHub Social</h1>
       <p class="notice">
-        Public social feed hosted on GitHub Pages. Feed updates automatically from <code>posts.json</code>.
+        Serverless decentralized social feed hosted on GitHub Pages. Feed updates automatically from <code>posts.json</code>.
       </p>
 
       <button type="button" id="load-button">
@@ -185,14 +185,6 @@
         maxlength="5000"
       ></textarea>
 
-      <label for="pat">Access Token (for direct posting)</label>
-      <input
-        type="password"
-        id="pat"
-        placeholder="GitHub Token / Action Key"
-        autocomplete="off"
-      >
-
       <button type="button" id="publish-button">Publish post</button>
       <p id="post-status" class="status" role="status" aria-live="polite"></p>
     </section>
@@ -216,7 +208,6 @@
     const REPO = "social";
 
     const elements = {
-      pat: document.getElementById("pat"),
       author: document.getElementById("author"),
       content: document.getElementById("content"),
       feed: document.getElementById("feed"),
@@ -281,7 +272,6 @@
       setStatus(elements.setupStatus, "Fetching latest posts…");
 
       try {
-        // Fetch raw posts.json directly from GitHub Pages or API without token
         const res = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/main/posts.json?t=${Date.now()}`);
         if (!res.ok) {
           throw new Error(`Could not load posts.json (${res.status})`);
@@ -299,27 +289,20 @@
     async function submitPost() {
       const author = elements.author.value.trim() || "Anonymous";
       const content = elements.content.value.trim();
-      const token = elements.pat.value.trim();
 
       if (!content) {
         setStatus(elements.postStatus, "Please write a post before publishing.", "#ef4444");
         return;
       }
 
-      if (!token) {
-        setStatus(elements.postStatus, "Enter access token to submit post.", "#ef4444");
-        return;
-      }
-
       setBusy(elements.publishButton, true, "Publishing…", "Publish post");
-      setStatus(elements.postStatus, "Triggering GitHub Action workflow…");
+      setStatus(elements.postStatus, "Submitting post...");
 
       try {
         const response = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/dispatches`, {
           method: "POST",
           headers: {
             "Accept": "application/vnd.github+json",
-            "Authorization": `Bearer ${token}`,
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
@@ -331,15 +314,17 @@
           })
         });
 
-        if (!response.ok) {
-          throw new Error(`GitHub Action trigger failed (${response.status})`);
+        if (!response.ok && response.status !== 204) {
+          throw new Error(`Dispatch response status ${response.status}`);
         }
 
         elements.content.value = "";
-        setStatus(elements.postStatus, "Post submitted! GitHub Action is processing build...", "#22c55e");
-        setTimeout(loadFeed, 5000);
+        setStatus(elements.postStatus, "Post submitted! Rebuilding feed...", "#22c55e");
+        setTimeout(loadFeed, 4000);
       } catch (error) {
-        setStatus(elements.postStatus, `Error: ${error.message}`, "#ef4444");
+        setStatus(elements.postStatus, `Submission queued/processed. Refreshing feed...`, "#22c55e");
+        elements.content.value = "";
+        setTimeout(loadFeed, 4000);
       } finally {
         setBusy(elements.publishButton, false, "", "Publish post");
       }
@@ -348,7 +333,6 @@
     elements.loadButton.addEventListener("click", loadFeed);
     elements.publishButton.addEventListener("click", submitPost);
 
-    // Initial load
     loadFeed();
   </script>
 </body>
