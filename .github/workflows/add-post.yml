@@ -1,0 +1,42 @@
+name: Add Post to Feed
+
+on:
+  repository_dispatch:
+    types: [add_post]
+
+jobs:
+  add-post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update posts.json
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const filePath = './posts.json';
+            let posts = [];
+            
+            if (fs.existsSync(filePath)) {
+              posts = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            }
+            
+            const newPost = {
+              id: Date.now().toString(),
+              author: context.payload.client_payload.author || 'Anonymous',
+              content: context.payload.client_payload.content,
+              timestamp: new Date().toISOString()
+            };
+            
+            posts.unshift(newPost);
+            fs.writeFileSync(filePath, JSON.stringify(posts, null, 2));
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add posts.json
+          git commit -m "Add new post from web feed"
+          git push
